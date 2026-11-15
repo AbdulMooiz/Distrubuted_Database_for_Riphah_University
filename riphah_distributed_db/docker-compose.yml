@@ -1,0 +1,63 @@
+name: riphah_ddb
+services:
+  main:
+    image: postgres:16
+    container_name: riphah_main
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: riphah
+    ports:
+      - "5433:5432"
+    volumes:
+      - main_data:/var/lib/postgresql/data
+      - ./sql/init/main.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./:/project:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U postgres -d riphah"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  lahore:
+    image: postgres:16
+    container_name: riphah_lahore
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: riphah
+    ports:
+      - "5434:5432"
+    volumes:
+      - lahore_data:/var/lib/postgresql/data
+      - ./sql/init/lahore.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./:/project:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U postgres -d riphah"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  faisalabad:
+    image: postgres:16
+    container_name: riphah_faisalabad
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: riphah
+    ports:
+      - "5435:5432"
+    volumes:
+      - faisalabad_data:/var/lib/postgresql/data
+      - ./sql/init/faisalabad.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./:/project:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U postgres -d riphah"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  main_data:
+  lahore_data:
+  faisalabad_data:

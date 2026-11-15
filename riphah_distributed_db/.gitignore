@@ -1,0 +1,6 @@
+# Local credentials and editor files
+.env
+.vscode/
+.idea/
+*.log
+.DS_Store
