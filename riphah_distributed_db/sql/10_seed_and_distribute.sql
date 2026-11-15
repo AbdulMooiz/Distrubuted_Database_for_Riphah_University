@@ -2,13 +2,68 @@
 \echo 'Creating deterministic synthetic Riphah data and distributing fragments...'
 
 -- Ensure the trigger function exists and is properly defined as a trigger function
-CREATE OR REPLACE FUNCTION sync_faculty_public_replicas()
-RETURNS TRIGGER AS $$
+
+CREATE OR REPLACE FUNCTION public.sync_faculty_public_replicas()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
 BEGIN
-    -- Synchronization logic or stub for distributed replicas
+    -- Delete the old record from both replicas.
+    IF TG_OP = 'DELETE' THEN
+        DELETE FROM public.faculty_public_lahore
+        WHERE fid = OLD.fid;
+
+        DELETE FROM public.faculty_public_faisalabad
+        WHERE fid = OLD.fid;
+
+        RETURN OLD;
+    END IF;
+
+    -- Handle a change to the faculty ID.
+    IF TG_OP = 'UPDATE' AND OLD.fid IS DISTINCT FROM NEW.fid THEN
+        DELETE FROM public.faculty_public_lahore
+        WHERE fid = OLD.fid;
+
+        DELETE FROM public.faculty_public_faisalabad
+        WHERE fid = OLD.fid;
+    END IF;
+
+    -- Synchronize the Lahore replica.
+    UPDATE public.faculty_public_lahore
+    SET name = NEW.name,
+        dept = NEW.dept,
+        campus = NEW.campus,
+        phone = NEW.phone,
+        email = NEW.email
+    WHERE fid = NEW.fid;
+
+    IF NOT FOUND THEN
+        INSERT INTO public.faculty_public_lahore
+            (fid, name, dept, campus, phone, email)
+        VALUES
+            (NEW.fid, NEW.name, NEW.dept, NEW.campus, NEW.phone, NEW.email);
+    END IF;
+
+    -- Synchronize the Faisalabad replica.
+    UPDATE public.faculty_public_faisalabad
+    SET name = NEW.name,
+        dept = NEW.dept,
+        campus = NEW.campus,
+        phone = NEW.phone,
+        email = NEW.email
+    WHERE fid = NEW.fid;
+
+    IF NOT FOUND THEN
+        INSERT INTO public.faculty_public_faisalabad
+            (fid, name, dept, campus, phone, email)
+        VALUES
+            (NEW.fid, NEW.name, NEW.dept, NEW.campus, NEW.phone, NEW.email);
+    END IF;
+
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$function$;
+
 
 -- Safely drop the trigger if it exists before bulk loading
 DROP TRIGGER IF EXISTS faculty_public_replicate ON faculty_public;
@@ -156,7 +211,7 @@ COMMIT;
 -- Re-create trigger safely after bulk loading inside the transaction boundary
 CREATE TRIGGER faculty_public_replicate
 AFTER INSERT OR UPDATE OR DELETE ON faculty_public
-FOR EACH ROW EXECUTE FUNCTION sync_faculty_public_replicas();
+FOR EACH ROW EXECUTE FUNCTION public.sync_faculty_public_replicas();
 
 ANALYZE student_m_low;
 ANALYZE student_m_other;

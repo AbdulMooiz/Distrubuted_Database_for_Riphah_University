@@ -12,7 +12,7 @@ UNION ALL SELECT 'student_f_other', count(*) FROM student_f_other
 ORDER BY fragment;
 
 \echo
-\echo 'A Lahore student's elective at Faisalabad stays in ENROLL_L because ENROLL follows the student.'
+\echo 'A Lahore students elective at Faisalabad stays in ENROLL_L because ENROLL follows the student.'
 SELECT e.sid, s.campus AS student_home, c.campus AS course_campus,
        e.cid, c.title, e.semester, e.grade
 FROM enroll_l e

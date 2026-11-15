@@ -159,31 +159,64 @@ FROM faculty_public p
 JOIN faculty_payroll pay USING (fid);
 GRANT SELECT ON faculty_full TO payroll_reader;
 
-CREATE OR REPLACE FUNCTION sync_faculty_public_replicas()
+
+CREATE OR REPLACE FUNCTION public.sync_faculty_public_replicas()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $$
+AS $function$
 BEGIN
-    IF TG_OP = 'INSERT' THEN
-        INSERT INTO faculty_public_lahore (fid, name, dept, campus, phone, email)
-        VALUES (NEW.fid, NEW.name, NEW.dept, NEW.campus, NEW.phone, NEW.email);
-        INSERT INTO faculty_public_faisalabad (fid, name, dept, campus, phone, email)
-        VALUES (NEW.fid, NEW.name, NEW.dept, NEW.campus, NEW.phone, NEW.email);
-        RETURN NEW;
-    ELSIF TG_OP = 'UPDATE' THEN
-        UPDATE faculty_public_lahore
-        SET fid = NEW.fid, name = NEW.name, dept = NEW.dept, campus = NEW.campus,
-            phone = NEW.phone, email = NEW.email
+    -- Delete the old record from both replicas.
+    IF TG_OP = 'DELETE' THEN
+        DELETE FROM public.faculty_public_lahore
         WHERE fid = OLD.fid;
-        UPDATE faculty_public_faisalabad
-        SET fid = NEW.fid, name = NEW.name, dept = NEW.dept, campus = NEW.campus,
-            phone = NEW.phone, email = NEW.email
+
+        DELETE FROM public.faculty_public_faisalabad
         WHERE fid = OLD.fid;
-        RETURN NEW;
-    ELSE
-        DELETE FROM faculty_public_lahore WHERE fid = OLD.fid;
-        DELETE FROM faculty_public_faisalabad WHERE fid = OLD.fid;
+
         RETURN OLD;
     END IF;
+
+    -- Handle a change to the faculty ID.
+    IF TG_OP = 'UPDATE' AND OLD.fid IS DISTINCT FROM NEW.fid THEN
+        DELETE FROM public.faculty_public_lahore
+        WHERE fid = OLD.fid;
+
+        DELETE FROM public.faculty_public_faisalabad
+        WHERE fid = OLD.fid;
+    END IF;
+
+    -- Synchronize the Lahore replica.
+    UPDATE public.faculty_public_lahore
+    SET name = NEW.name,
+        dept = NEW.dept,
+        campus = NEW.campus,
+        phone = NEW.phone,
+        email = NEW.email
+    WHERE fid = NEW.fid;
+
+    IF NOT FOUND THEN
+        INSERT INTO public.faculty_public_lahore
+            (fid, name, dept, campus, phone, email)
+        VALUES
+            (NEW.fid, NEW.name, NEW.dept, NEW.campus, NEW.phone, NEW.email);
+    END IF;
+
+    -- Synchronize the Faisalabad replica.
+    UPDATE public.faculty_public_faisalabad
+    SET name = NEW.name,
+        dept = NEW.dept,
+        campus = NEW.campus,
+        phone = NEW.phone,
+        email = NEW.email
+    WHERE fid = NEW.fid;
+
+    IF NOT FOUND THEN
+        INSERT INTO public.faculty_public_faisalabad
+            (fid, name, dept, campus, phone, email)
+        VALUES
+            (NEW.fid, NEW.name, NEW.dept, NEW.campus, NEW.phone, NEW.email);
+    END IF;
+
+    RETURN NEW;
 END;
-$$;
+$function$;
